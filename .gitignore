@@ -1,0 +1,16 @@
+# Python virtual environments
+.venv/
+venv/
+ENV/
+pyvenv.cfg
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# CatBoost & Model specific caches
+catboost_info/
+cache/
+fastf1_http_cache.sqlite
+
+# Block ALL CSV datasets to keep the repo clean
+*.csv

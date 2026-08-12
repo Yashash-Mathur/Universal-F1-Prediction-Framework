@@ -41,6 +41,12 @@ The pipeline was put to the test for its first live deployment during the 2026 S
 2. **P2 Prediction:** George Russell *(Actual: P2)* ✅
 3. **P3 Prediction:** Kimi Antonelli *(Actual: Lando Norris)* ❌ 
    * *Note: Antonelli was running comfortably in P2 before suffering a mechanical engine DNF.*
+   
+# 📂 Project Structure
+This repository documents an iterative learning process. 
+* **Core Pipeline:** `mle8(main collector).py` (Data), `mle37_feature_engineering_v2.py` (Features), and `mle56_barcelona_final_prediction.py` (Final Model Inference).
+* **Model Comparison:** See `mle40_baseline_v2.py` (Logistic Regression), `mle43_random_forest.py`, and `mle46_catboost_baseline.py` for the comparative analysis that led to the final selection.
+* **Experiments:** Remaining files represent iterative developmental steps (EDA, ablation studies, and stability testing).
 
 ## 🚀 Future Roadmap
 * **Version 2:** Integrate mechanical reliability & DNF risk profiling features.

@@ -3,7 +3,7 @@ import numpy as np
 
 
 # ==========================================================
-# FILES
+# CONFIG
 # ==========================================================
 
 RAW_DATASET = "f1_2020_2026_raw_v2.csv"
@@ -27,10 +27,8 @@ print("Raw shape:", df.shape)
 # BASIC CLEANING
 # ==========================================================
 
-# Remove rows without a valid race finishing position
 df = df.dropna(subset=["Position"]).copy()
 
-# Ensure numeric columns are numeric
 df["Position"] = pd.to_numeric(
     df["Position"],
     errors="coerce"
@@ -46,13 +44,11 @@ df["Points"] = pd.to_numeric(
     errors="coerce"
 )
 
-# Convert qualifying time back to timedelta
 df["bestqualitime"] = pd.to_timedelta(
     df["bestqualitime"],
     errors="coerce"
 )
 
-# Sort chronologically
 df = df.sort_values(
     ["Year", "RoundNumber", "Abbreviation"]
 ).reset_index(drop=True)
@@ -87,8 +83,9 @@ df["HasQualiTime"] = (
 
 print("\nBuilding championship features...")
 
+
 # ----------------------------------------------------------
-# DRIVER POINTS BEFORE CURRENT RACE
+# DRIVER CHAMPIONSHIP POINTS
 # ----------------------------------------------------------
 
 df["DriverChampionshipPoints"] = (
@@ -101,18 +98,27 @@ df["DriverChampionshipPoints"] = (
     )
 )
 
+
 # ----------------------------------------------------------
-# CONSTRUCTOR POINTS AT RACE LEVEL
+# CONSTRUCTOR CHAMPIONSHIP POINTS
 # ----------------------------------------------------------
 
 team_race_points = (
     df.groupby(
-        ["Year", "RoundNumber", "TeamName"],
+        [
+            "Year",
+            "RoundNumber",
+            "TeamName"
+        ],
         as_index=False
     )["Points"]
     .sum()
     .sort_values(
-        ["Year", "TeamName", "RoundNumber"]
+        [
+            "Year",
+            "TeamName",
+            "RoundNumber"
+        ]
     )
 )
 
@@ -129,28 +135,9 @@ team_race_points[
     )
 )
 
-team_race_points = team_race_points[
-    [
-        "Year",
-        "RoundNumber",
-        "TeamName",
-        "ConstructorChampionshipPoints"
-    ]
-]
-
-df = df.merge(
-    team_race_points,
-    on=[
-        "Year",
-        "RoundNumber",
-        "TeamName"
-    ],
-    how="left"
-)
-
 
 # ----------------------------------------------------------
-# CHAMPIONSHIP POSITIONS
+# DRIVER CHAMPIONSHIP POSITION
 # ----------------------------------------------------------
 
 driver_standings = (
@@ -197,6 +184,10 @@ df = df.merge(
 )
 
 
+# ----------------------------------------------------------
+# CONSTRUCTOR CHAMPIONSHIP POSITION
+# ----------------------------------------------------------
+
 constructor_standings = (
     team_race_points[
         [
@@ -240,6 +231,33 @@ df = df.merge(
     how="left"
 )
 
+df = df.merge(
+    team_race_points[
+        [
+            "Year",
+            "RoundNumber",
+            "TeamName",
+            "ConstructorChampionshipPoints"
+        ]
+    ],
+    on=[
+        "Year",
+        "RoundNumber",
+        "TeamName"
+    ],
+    how="left",
+    suffixes=("", "_duplicate")
+)
+
+df["ConstructorChampionshipPoints"] = (
+    df["ConstructorChampionshipPoints"]
+)
+
+df = df.drop(
+    columns=["ConstructorChampionshipPoints_duplicate"],
+    errors="ignore"
+)
+
 
 # ==========================================================
 # AVERAGE FINISH LAST 5
@@ -265,7 +283,6 @@ df["AverageFinishLast5"] = (
 
 # ==========================================================
 # TEAMMATE QUALIFYING GAP
-# CURRENT QUALIFYING IS AVAILABLE PRE-RACE
 # ==========================================================
 
 print("Building TeammateQualifyingGap...")
@@ -315,9 +332,21 @@ df.loc[
 ).dt.total_seconds()
 
 
+# ----------------------------------------------------------
+# MISSINGNESS INDICATOR
+# ----------------------------------------------------------
+
+df["HasGapToPole"] = (
+    df["gaptopole_bestquali"].notna()
+).astype(int)
+
+df["HasTeammateGap"] = (
+    df["TeammateQualifyingGap"].notna()
+).astype(int)
+
+
 # ==========================================================
 # CIRCUIT CLASSIFICATIONS
-# SAME DEFINITIONS AS EXISTING PIPELINE
 # ==========================================================
 
 street_circuits = {
@@ -367,7 +396,7 @@ permanent_circuits = (
 
 # ==========================================================
 # CIRCUIT PERFORMANCE
-# ONLY HISTORY FROM 2023 ONWARDS
+# HISTORY FROM 2023 ONWARDS
 # STRICTLY PRE-RACE
 # ==========================================================
 
@@ -388,9 +417,6 @@ for col in circuit_columns:
     df[col] = np.nan
 
 
-# We deliberately process chronologically.
-# History for a row is always created from previous rows only.
-
 for idx in range(len(df)):
 
     if idx % 500 == 0:
@@ -404,10 +430,6 @@ for idx in range(len(df)):
     driver = row["FullName"]
     current_year = row["Year"]
     current_round = row["RoundNumber"]
-
-    # ------------------------------------------------------
-    # PRE-RACE HISTORY
-    # ------------------------------------------------------
 
     history = df[
         (df["FullName"] == driver)
@@ -429,6 +451,7 @@ for idx in range(len(df)):
         )
     ]
 
+
     # ------------------------------------------------------
     # STREET
     # ------------------------------------------------------
@@ -444,9 +467,7 @@ for idx in range(len(df)):
         df.at[
             idx,
             "StreetCircuitPerformance"
-        ] = (
-            street_history["Position"].mean()
-        )
+        ] = street_history["Position"].mean()
 
         df.at[
             idx,
@@ -476,9 +497,7 @@ for idx in range(len(df)):
         df.at[
             idx,
             "PermanentCircuitPerformance"
-        ] = (
-            permanent_history["Position"].mean()
-        )
+        ] = permanent_history["Position"].mean()
 
         df.at[
             idx,
@@ -508,9 +527,7 @@ for idx in range(len(df)):
         df.at[
             idx,
             "HighSpeedCircuitPerformance"
-        ] = (
-            high_speed_history["Position"].mean()
-        )
+        ] = high_speed_history["Position"].mean()
 
         df.at[
             idx,
@@ -540,9 +557,7 @@ for idx in range(len(df)):
         df.at[
             idx,
             "HighDownforceCircuitPerformance"
-        ] = (
-            high_downforce_history["Position"].mean()
-        )
+        ] = high_downforce_history["Position"].mean()
 
         df.at[
             idx,
@@ -558,7 +573,7 @@ for idx in range(len(df)):
 
 
 # ==========================================================
-# RECENT FORM — LAST 3
+# RECENT FORM LAST 3
 # STRICTLY PRE-RACE
 # ==========================================================
 
@@ -593,8 +608,7 @@ df["AverageGridLast3"] = (
 
 
 # ==========================================================
-# CONSTRUCTOR AVERAGE FINISH LAST 3
-# STRICTLY PRE-RACE
+# CONSTRUCTOR RECENT FORM
 # ==========================================================
 
 print("Building constructor recent-form feature...")
@@ -706,7 +720,6 @@ print(
     .to_string(index=False)
 )
 
-print("\nFeature columns:")
 
 feature_columns = [
     "ConstructorChampionshipPoints",
@@ -721,17 +734,37 @@ feature_columns = [
     "HighDownforceCircuitPerformance",
     "AverageFinishLast3",
     "AverageGridLast3",
-    "ConstructorAverageFinishLast3"
+    "ConstructorAverageFinishLast3",
+    "HasGapToPole",
+    "HasTeammateGap",
+    "HasStreetCircuitHistory",
+    "HasPermanentCircuitHistory",
+    "HasHighSpeedCircuitHistory",
+    "HasHighDownforceCircuitHistory"
 ]
 
+print("\nFeature columns:")
 print(feature_columns)
 
 print("\nMissing values:")
-
 print(
     df[feature_columns]
     .isna()
     .sum()
+)
+
+print("\nMissingness flags:")
+print(
+    df[
+        [
+            "HasGapToPole",
+            "HasTeammateGap",
+            "HasStreetCircuitHistory",
+            "HasPermanentCircuitHistory",
+            "HasHighSpeedCircuitHistory",
+            "HasHighDownforceCircuitHistory"
+        ]
+    ].sum()
 )
 
 print("\nSaved:")

@@ -4,13 +4,22 @@ venv/
 ENV/
 pyvenv.cfg
 
+# Python generated files
+__pycache__/
+*.py[cod]
+*$py.class
+
 # Jupyter Notebook checkpoints
 .ipynb_checkpoints/
 
-# CatBoost & Model specific caches
+# CatBoost & FastF1 generated artifacts
 catboost_info/
 cache/
 fastf1_http_cache.sqlite
 
-# Block ALL CSV datasets to keep the repo clean
+# Generated datasets / outputs
 *.csv
+
+# Local audit / temporary files
+audit_output.txt
+tempCodeRunnerFile.py

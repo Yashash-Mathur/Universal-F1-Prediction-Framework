@@ -1,7 +1,10 @@
 import pandas as pd
 import numpy as np
 
-from catboost import CatBoostClassifier
+
+from src.models.catboost_model import create_catboost_model
+
+from src.features.feature_config import MODEL_FEATURES
 
 from sklearn.metrics import (
     accuracy_score,
@@ -26,39 +29,7 @@ MIN_RACE_ROWS = 20
 # FEATURES
 # ==========================================================
 
-features = [
-    "GridPosition",
-    "gaptopole_bestquali",
-    "PitLaneStart",
-    "HasQualiTime",
-
-    "HasGapToPole",
-    "TeammateQualifyingGap",
-    "HasTeammateGap",
-
-    "ConstructorChampionshipPoints",
-    "DriverChampionshipPoints",
-    "ConstructorChampionshipPosition",
-    "DriverChampionshipPosition",
-
-    "RoundNumber",
-
-    "AverageFinishLast5",
-    "AverageFinishLast3",
-    "AverageGridLast3",
-    "ConstructorAverageFinishLast3",
-
-    "StreetCircuitPerformance",
-    "PermanentCircuitPerformance",
-    "HighSpeedCircuitPerformance",
-    "HighDownforceCircuitPerformance",
-
-    "HasStreetCircuitHistory",
-    "HasPermanentCircuitHistory",
-    "HasHighSpeedCircuitHistory",
-    "HasHighDownforceCircuitHistory"
-]
-
+features = MODEL_FEATURES
 
 # ==========================================================
 # LOAD DATA
@@ -188,20 +159,7 @@ for _, race_info in races.iterrows():
     # ------------------------------------------------------
     # MODEL
     # ------------------------------------------------------
-
-    model = CatBoostClassifier(
-
-        iterations=300,
-        depth=6,
-        learning_rate=0.05,
-
-        loss_function="Logloss",
-
-        random_seed=42,
-
-        verbose=False
-    )
-
+    model = create_catboost_model()
 
     model.fit(
         X_train,

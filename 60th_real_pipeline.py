@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-
+from src.features.recent_form import add_recent_form_features
 
 # ==========================================================
 # CONFIG
@@ -259,26 +259,6 @@ df = df.drop(
 )
 
 
-# ==========================================================
-# AVERAGE FINISH LAST 5
-# STRICTLY PRE-RACE
-# ==========================================================
-
-print("Building AverageFinishLast5...")
-
-df["AverageFinishLast5"] = (
-    df.groupby("FullName")["Position"]
-    .transform(
-        lambda s:
-        s.shift(1)
-        .rolling(
-            window=5,
-            min_periods=1
-        )
-        .mean()
-    )
-    .fillna(0)
-)
 
 
 # ==========================================================
@@ -572,106 +552,11 @@ for idx in range(len(df)):
         ] = 0
 
 
-# ==========================================================
-# RECENT FORM LAST 3
-# STRICTLY PRE-RACE
-# ==========================================================
+
 
 print("Building recent-form features...")
 
-df["AverageFinishLast3"] = (
-    df.groupby("FullName")["Position"]
-    .transform(
-        lambda s:
-        s.shift(1)
-        .rolling(
-            window=3,
-            min_periods=1
-        )
-        .mean()
-    )
-)
-
-df["AverageGridLast3"] = (
-    df.groupby("FullName")["GridPosition"]
-    .transform(
-        lambda s:
-        s.shift(1)
-        .replace(0, 24)
-        .rolling(
-            window=3,
-            min_periods=1
-        )
-        .mean()
-    )
-)
-
-
-# ==========================================================
-# CONSTRUCTOR RECENT FORM
-# ==========================================================
-
-print("Building constructor recent-form feature...")
-
-team_races = (
-    df.groupby(
-        [
-            "Year",
-            "RoundNumber",
-            "TeamName"
-        ],
-        as_index=False
-    )["Position"]
-    .mean()
-    .rename(
-        columns={
-            "Position":
-            "ConstructorRaceAverageFinish"
-        }
-    )
-    .sort_values(
-        [
-            "TeamName",
-            "Year",
-            "RoundNumber"
-        ]
-    )
-)
-
-team_races[
-    "ConstructorAverageFinishLast3"
-] = (
-    team_races
-    .groupby("TeamName")
-    ["ConstructorRaceAverageFinish"]
-    .transform(
-        lambda s:
-        s.shift(1)
-        .rolling(
-            window=3,
-            min_periods=1
-        )
-        .mean()
-    )
-)
-
-df = df.merge(
-    team_races[
-        [
-            "Year",
-            "RoundNumber",
-            "TeamName",
-            "ConstructorAverageFinishLast3"
-        ]
-    ],
-    on=[
-        "Year",
-        "RoundNumber",
-        "TeamName"
-    ],
-    how="left"
-)
-
+df = add_recent_form_features(df)
 
 # ==========================================================
 # FINAL SORT

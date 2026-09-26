@@ -1,6 +1,9 @@
 import pandas as pd
 import numpy as np
+
+from src.features.championship import add_championship_features
 from src.features.recent_form import add_recent_form_features
+
 
 # ==========================================================
 # CONFIG
@@ -83,182 +86,7 @@ df["HasQualiTime"] = (
 
 print("\nBuilding championship features...")
 
-
-# ----------------------------------------------------------
-# DRIVER CHAMPIONSHIP POINTS
-# ----------------------------------------------------------
-
-df["DriverChampionshipPoints"] = (
-    df.groupby(
-        ["Year", "FullName"]
-    )["Points"]
-    .transform(
-        lambda s:
-        s.cumsum().shift(1).fillna(0)
-    )
-)
-
-
-# ----------------------------------------------------------
-# CONSTRUCTOR CHAMPIONSHIP POINTS
-# ----------------------------------------------------------
-
-team_race_points = (
-    df.groupby(
-        [
-            "Year",
-            "RoundNumber",
-            "TeamName"
-        ],
-        as_index=False
-    )["Points"]
-    .sum()
-    .sort_values(
-        [
-            "Year",
-            "TeamName",
-            "RoundNumber"
-        ]
-    )
-)
-
-team_race_points[
-    "ConstructorChampionshipPoints"
-] = (
-    team_race_points
-    .groupby(
-        ["Year", "TeamName"]
-    )["Points"]
-    .transform(
-        lambda s:
-        s.cumsum().shift(1).fillna(0)
-    )
-)
-
-
-# ----------------------------------------------------------
-# DRIVER CHAMPIONSHIP POSITION
-# ----------------------------------------------------------
-
-driver_standings = (
-    df[
-        [
-            "Year",
-            "RoundNumber",
-            "FullName",
-            "DriverChampionshipPoints"
-        ]
-    ]
-    .drop_duplicates()
-)
-
-driver_standings[
-    "DriverChampionshipPosition"
-] = (
-    driver_standings
-    .groupby(
-        ["Year", "RoundNumber"]
-    )["DriverChampionshipPoints"]
-    .rank(
-        ascending=False,
-        method="min"
-    )
-    .astype(int)
-)
-
-df = df.merge(
-    driver_standings[
-        [
-            "Year",
-            "RoundNumber",
-            "FullName",
-            "DriverChampionshipPosition"
-        ]
-    ],
-    on=[
-        "Year",
-        "RoundNumber",
-        "FullName"
-    ],
-    how="left"
-)
-
-
-# ----------------------------------------------------------
-# CONSTRUCTOR CHAMPIONSHIP POSITION
-# ----------------------------------------------------------
-
-constructor_standings = (
-    team_race_points[
-        [
-            "Year",
-            "RoundNumber",
-            "TeamName",
-            "ConstructorChampionshipPoints"
-        ]
-    ]
-    .drop_duplicates()
-)
-
-constructor_standings[
-    "ConstructorChampionshipPosition"
-] = (
-    constructor_standings
-    .groupby(
-        ["Year", "RoundNumber"]
-    )["ConstructorChampionshipPoints"]
-    .rank(
-        ascending=False,
-        method="min"
-    )
-    .astype(int)
-)
-
-df = df.merge(
-    constructor_standings[
-        [
-            "Year",
-            "RoundNumber",
-            "TeamName",
-            "ConstructorChampionshipPosition"
-        ]
-    ],
-    on=[
-        "Year",
-        "RoundNumber",
-        "TeamName"
-    ],
-    how="left"
-)
-
-df = df.merge(
-    team_race_points[
-        [
-            "Year",
-            "RoundNumber",
-            "TeamName",
-            "ConstructorChampionshipPoints"
-        ]
-    ],
-    on=[
-        "Year",
-        "RoundNumber",
-        "TeamName"
-    ],
-    how="left",
-    suffixes=("", "_duplicate")
-)
-
-df["ConstructorChampionshipPoints"] = (
-    df["ConstructorChampionshipPoints"]
-)
-
-df = df.drop(
-    columns=["ConstructorChampionshipPoints_duplicate"],
-    errors="ignore"
-)
-
-
+df = add_championship_features(df)
 
 
 # ==========================================================
@@ -552,11 +380,14 @@ for idx in range(len(df)):
         ] = 0
 
 
-
+# ==========================================================
+# RECENT FORM
+# ==========================================================
 
 print("Building recent-form features...")
 
 df = add_recent_form_features(df)
+
 
 # ==========================================================
 # FINAL SORT

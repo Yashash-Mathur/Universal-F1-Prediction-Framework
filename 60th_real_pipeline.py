@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 
 from src.features.championship import add_championship_features
+from src.features.qualifying import add_qualifying_features
 from src.features.recent_form import add_recent_form_features
 
 
@@ -93,51 +94,9 @@ df = add_championship_features(df)
 # TEAMMATE QUALIFYING GAP
 # ==========================================================
 
-print("Building TeammateQualifyingGap...")
+print("Building qualifying features...")
 
-team_group = df.groupby(
-    [
-        "Year",
-        "RoundNumber",
-        "TeamName"
-    ]
-)
-
-team_quali_count = (
-    team_group["bestqualitime"]
-    .transform("count")
-)
-
-team_quali_sum = (
-    team_group["bestqualitime"]
-    .transform("sum")
-)
-
-teammate_time = (
-    team_quali_sum
-    - df["bestqualitime"]
-)
-
-df["TeammateQualifyingGap"] = np.nan
-
-valid_teammate_gap = (
-    (team_quali_count == 2)
-    &
-    df["bestqualitime"].notna()
-)
-
-df.loc[
-    valid_teammate_gap,
-    "TeammateQualifyingGap"
-] = (
-    df.loc[
-        valid_teammate_gap,
-        "bestqualitime"
-    ]
-    - teammate_time.loc[
-        valid_teammate_gap
-    ]
-).dt.total_seconds()
+df = add_qualifying_features(df)
 
 
 # ----------------------------------------------------------

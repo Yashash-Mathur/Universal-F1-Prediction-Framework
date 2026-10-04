@@ -3,6 +3,7 @@ import numpy as np
 
 from src.features.championship import add_championship_features
 from src.features.qualifying import add_qualifying_features
+from src.features.circuit_features import add_circuit_features
 from src.features.recent_form import add_recent_form_features
 
 
@@ -91,7 +92,7 @@ df = add_championship_features(df)
 
 
 # ==========================================================
-# TEAMMATE QUALIFYING GAP
+# QUALIFYING FEATURES
 # ==========================================================
 
 print("Building qualifying features...")
@@ -99,244 +100,13 @@ print("Building qualifying features...")
 df = add_qualifying_features(df)
 
 
-# ----------------------------------------------------------
-# MISSINGNESS INDICATOR
-# ----------------------------------------------------------
-
-df["HasGapToPole"] = (
-    df["gaptopole_bestquali"].notna()
-).astype(int)
-
-df["HasTeammateGap"] = (
-    df["TeammateQualifyingGap"].notna()
-).astype(int)
-
-
 # ==========================================================
-# CIRCUIT CLASSIFICATIONS
-# ==========================================================
-
-street_circuits = {
-    "Australian Grand Prix",
-    "Azerbaijan Grand Prix",
-    "Canadian Grand Prix",
-    "Miami Grand Prix",
-    "Monaco Grand Prix",
-    "Saudi Arabian Grand Prix",
-    "Singapore Grand Prix",
-    "Las Vegas Grand Prix"
-}
-
-high_speed_circuits = {
-    "Australian Grand Prix",
-    "Austrian Grand Prix",
-    "Azerbaijan Grand Prix",
-    "Belgian Grand Prix",
-    "British Grand Prix",
-    "Canadian Grand Prix",
-    "Italian Grand Prix",
-    "Las Vegas Grand Prix",
-    "Mexico City Grand Prix",
-    "Miami Grand Prix",
-    "Saudi Arabian Grand Prix",
-    "Styrian Grand Prix",
-    "70th Anniversary Grand Prix",
-    "Sakhir Grand Prix"
-}
-
-high_downforce_circuits = {
-    "Monaco Grand Prix",
-    "Singapore Grand Prix",
-    "Hungarian Grand Prix",
-    "Dutch Grand Prix",
-    "Japanese Grand Prix",
-    "Spanish Grand Prix",
-    "Qatar Grand Prix",
-    "British Grand Prix"
-}
-
-permanent_circuits = (
-    set(df["RaceName"].unique())
-    - street_circuits
-)
-
-
-# ==========================================================
-# CIRCUIT PERFORMANCE
+# CIRCUIT FEATURES
 # HISTORY FROM 2023 ONWARDS
 # STRICTLY PRE-RACE
 # ==========================================================
 
-print("Building circuit performance features...")
-
-circuit_columns = [
-    "StreetCircuitPerformance",
-    "PermanentCircuitPerformance",
-    "HighSpeedCircuitPerformance",
-    "HighDownforceCircuitPerformance",
-    "HasStreetCircuitHistory",
-    "HasPermanentCircuitHistory",
-    "HasHighSpeedCircuitHistory",
-    "HasHighDownforceCircuitHistory"
-]
-
-for col in circuit_columns:
-    df[col] = np.nan
-
-
-for idx in range(len(df)):
-
-    if idx % 500 == 0:
-        print(
-            f"Processed circuit features: "
-            f"{idx}/{len(df)}"
-        )
-
-    row = df.iloc[idx]
-
-    driver = row["FullName"]
-    current_year = row["Year"]
-    current_round = row["RoundNumber"]
-
-    history = df[
-        (df["FullName"] == driver)
-        &
-        (
-            (
-                (df["Year"] >= 2023)
-                &
-                (df["Year"] < current_year)
-            )
-            |
-            (
-                (df["Year"] == current_year)
-                &
-                (df["Year"] >= 2023)
-                &
-                (df["RoundNumber"] < current_round)
-            )
-        )
-    ]
-
-
-    # ------------------------------------------------------
-    # STREET
-    # ------------------------------------------------------
-
-    street_history = history[
-        history["RaceName"].isin(
-            street_circuits
-        )
-    ]
-
-    if len(street_history) > 0:
-
-        df.at[
-            idx,
-            "StreetCircuitPerformance"
-        ] = street_history["Position"].mean()
-
-        df.at[
-            idx,
-            "HasStreetCircuitHistory"
-        ] = 1
-
-    else:
-
-        df.at[
-            idx,
-            "HasStreetCircuitHistory"
-        ] = 0
-
-
-    # ------------------------------------------------------
-    # PERMANENT
-    # ------------------------------------------------------
-
-    permanent_history = history[
-        history["RaceName"].isin(
-            permanent_circuits
-        )
-    ]
-
-    if len(permanent_history) > 0:
-
-        df.at[
-            idx,
-            "PermanentCircuitPerformance"
-        ] = permanent_history["Position"].mean()
-
-        df.at[
-            idx,
-            "HasPermanentCircuitHistory"
-        ] = 1
-
-    else:
-
-        df.at[
-            idx,
-            "HasPermanentCircuitHistory"
-        ] = 0
-
-
-    # ------------------------------------------------------
-    # HIGH SPEED
-    # ------------------------------------------------------
-
-    high_speed_history = history[
-        history["RaceName"].isin(
-            high_speed_circuits
-        )
-    ]
-
-    if len(high_speed_history) > 0:
-
-        df.at[
-            idx,
-            "HighSpeedCircuitPerformance"
-        ] = high_speed_history["Position"].mean()
-
-        df.at[
-            idx,
-            "HasHighSpeedCircuitHistory"
-        ] = 1
-
-    else:
-
-        df.at[
-            idx,
-            "HasHighSpeedCircuitHistory"
-        ] = 0
-
-
-    # ------------------------------------------------------
-    # HIGH DOWNFORCE
-    # ------------------------------------------------------
-
-    high_downforce_history = history[
-        history["RaceName"].isin(
-            high_downforce_circuits
-        )
-    ]
-
-    if len(high_downforce_history) > 0:
-
-        df.at[
-            idx,
-            "HighDownforceCircuitPerformance"
-        ] = high_downforce_history["Position"].mean()
-
-        df.at[
-            idx,
-            "HasHighDownforceCircuitHistory"
-        ] = 1
-
-    else:
-
-        df.at[
-            idx,
-            "HasHighDownforceCircuitHistory"
-        ] = 0
+df = add_circuit_features(df)
 
 
 # ==========================================================

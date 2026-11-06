@@ -13,6 +13,7 @@ The **Universal F1 Prediction Framework** is an end-to-end ML system that collec
 - **Strict Anti-Data-Leakage Design**: All championship standings, recent form, and circuit history metrics strictly exclude the target event.
 - **Fast Execution**: Vectorized circuit and form computations achieving >370× speedups over naive iteration.
 - **Chronological Walk-Forward Validation**: Evaluated race-by-race across the 2026 season without future-data contamination.
+- **Production REST API**: FastAPI backend with SQLAlchemy dual-mode persistence (SQLite dev / PostgreSQL prod), slowapi rate limiting, API key authentication, and Docker Compose deployment.
 
 ---
 
@@ -46,20 +47,27 @@ Features are defined in [`src/features/feature_config.py`](file:///src/features/
 
 ```text
 Universal-F1-Prediction-Framework/
-├── data/                       # Raw datasets, feature tables, and predictions (gitignored)
+├── data/                       # Raw datasets, feature tables, predictions, SQLite DB (gitignored)
 ├── src/
 │   ├── data_collection/        # FastF1 collectors (collector.py)
 │   ├── preprocessing/          # Data cleaning and type enforcement (clean.py)
 │   ├── features/               # Feature modules & orchestrator (build_features.py)
 │   ├── models/                 # Model factory & hyperparameter definitions (catboost_model.py)
 │   ├── validation/             # Chronological walk-forward validator (walkforward.py)
-│   └── prediction/             # General race prediction engine (predict.py)
+│   ├── prediction/             # General race prediction engine (predict.py)
+│   ├── db/                     # SQLAlchemy models, session factory, seeder (models.py, session.py, seed.py)
+│   ├── api/                    # FastAPI routes, schemas, rate limiting, auth (main.py, dependencies.py, routes/)
+│   └── cli/                    # Ingestion and database refresh workers (refresh.py)
 ├── experiments/
 │   ├── baselines/              # Logistic regression, decision trees, random forests
 │   ├── model_comparison/       # Ablation, stability, and tuning experiments
 │   ├── eda/                    # Exploratory data analysis scripts
 │   ├── historical_reference/   # Reference 60-series monolithic scripts
 │   └── archive/                # Early iterative development scripts (mle1..mle59)
+├── tests/                      # Automated test suite (test_api.py)
+├── Dockerfile                  # Container definition for production deployment
+├── docker-compose.yml          # FastAPI + PostgreSQL 16 + Redis 7 stack
+├── .env.example                # Configuration template
 ├── benchmark_circuit.py        # Circuit feature vectorization benchmark
 ├── requirements.txt            # Project dependencies
 └── README.md
@@ -110,10 +118,30 @@ python -m src.prediction.predict \
     --output data/predictions_dutch_gp.csv
 ```
 
+### 5. Seed Database & Start Backend API
+```bash
+# Seed calendar, drivers, model metrics, and predictions
+python -m src.db.seed
+
+# Start FastAPI server
+python -m uvicorn src.api.main:app --port 8000 --reload
+```
+Open [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) for the interactive Swagger UI.
+
+### 6. Run Automated Tests
+```bash
+pytest tests/ -v
+```
+
+### 7. Run with Docker Compose (Production)
+```bash
+docker compose up --build -d
+```
+
 ---
 
 ## 🗺️ Roadmap
 
 - [x] **Phase 1: ML Engine Cleanup & Parity Validation** (Modularized `src/`, 374× vectorized circuit features, repository hygiene).
-- [ ] **Phase 2: PostgreSQL & REST Backend** (Relational storage for races, drivers, and precomputed predictions; FastAPI service).
-- [ ] **Phase 3: Redis Rate Limiting & Containerization** (Tiered API rate limiting, token-bucket controls, Docker Compose deployment).
+- [x] **Phase 2: Relational Persistence & REST Backend** (SQLAlchemy schema, SQLite/PostgreSQL dual mode, prediction refresh CLI, FastAPI read endpoints).
+- [x] **Phase 3: Rate Limiting, API Key Security & Docker Deployment** (SlowAPI rate limiting, API key authentication, Dockerfile & docker-compose stack).

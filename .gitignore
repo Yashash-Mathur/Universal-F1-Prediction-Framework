@@ -16,6 +16,10 @@ __pycache__/
 catboost_info/
 cache/
 fastf1_http_cache.sqlite
+*.db
+*.sqlite3
+.env
+.pytest_cache/
 
 # Generated datasets / outputs
 *.csv

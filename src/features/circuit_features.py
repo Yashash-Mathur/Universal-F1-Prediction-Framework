@@ -3,18 +3,14 @@ Circuit-type feature engineering.
 
 All circuit performance features are strictly pre-race.
 
-Historical performance is calculated using:
+Historical performance uses:
     - races from 2023 onward
-    - only races before the current race
+    - only races strictly before the current race
 """
 
 import numpy as np
 import pandas as pd
 
-
-# ==========================================================
-# CIRCUIT CLASSIFICATIONS
-# ==========================================================
 
 STREET_CIRCUITS = {
     "Australian Grand Prix",
@@ -24,9 +20,8 @@ STREET_CIRCUITS = {
     "Monaco Grand Prix",
     "Saudi Arabian Grand Prix",
     "Singapore Grand Prix",
-    "Las Vegas Grand Prix"
+    "Las Vegas Grand Prix",
 }
-
 
 HIGH_SPEED_CIRCUITS = {
     "Australian Grand Prix",
@@ -42,9 +37,8 @@ HIGH_SPEED_CIRCUITS = {
     "Saudi Arabian Grand Prix",
     "Styrian Grand Prix",
     "70th Anniversary Grand Prix",
-    "Sakhir Grand Prix"
+    "Sakhir Grand Prix",
 }
-
 
 HIGH_DOWNFORCE_CIRCUITS = {
     "Monaco Grand Prix",
@@ -54,45 +48,137 @@ HIGH_DOWNFORCE_CIRCUITS = {
     "Japanese Grand Prix",
     "Spanish Grand Prix",
     "Qatar Grand Prix",
-    "British Grand Prix"
+    "British Grand Prix",
+}
+
+
+FEATURE_MAP = {
+    "StreetCircuitPerformance": (
+        STREET_CIRCUITS,
+        "HasStreetCircuitHistory",
+    ),
+    "PermanentCircuitPerformance": (
+        None,
+        "HasPermanentCircuitHistory",
+    ),
+    "HighSpeedCircuitPerformance": (
+        HIGH_SPEED_CIRCUITS,
+        "HasHighSpeedCircuitHistory",
+    ),
+    "HighDownforceCircuitPerformance": (
+        HIGH_DOWNFORCE_CIRCUITS,
+        "HasHighDownforceCircuitHistory",
+    ),
 }
 
 
 def add_circuit_features(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Add circuit-type performance and history features.
+    Add strictly pre-race circuit-type performance features.
 
-    Features added:
-        - StreetCircuitPerformance
-        - PermanentCircuitPerformance
-        - HighSpeedCircuitPerformance
-        - HighDownforceCircuitPerformance
-        - HasStreetCircuitHistory
-        - HasPermanentCircuitHistory
-        - HasHighSpeedCircuitHistory
-        - HasHighDownforceCircuitHistory
-
-    Historical data is restricted to:
-        - Year >= 2023
-        - races strictly before the current race
+    Historical information is restricted to races from 2023 onward
+    and excludes the current race entirely.
     """
 
     df = df.copy()
 
-    # ==========================================================
-    # PERMANENT CIRCUITS
-    # ==========================================================
-
     permanent_circuits = (
-        set(df["RaceName"].unique())
-        - STREET_CIRCUITS
+        set(df["RaceName"].unique()) - STREET_CIRCUITS
     )
 
-    # ==========================================================
-    # INITIALIZE FEATURES
-    # ==========================================================
+    # ----------------------------------------------------------
+    # Historical races only
+    # ----------------------------------------------------------
 
-    circuit_columns = [
+    history = df.loc[
+        df["Year"] >= 2023,
+        ["FullName", "Year", "RoundNumber", "RaceName", "Position"],
+    ].copy()
+
+    # One record per driver/race.
+    # This is the temporal unit of the feature.
+    race_keys = ["FullName", "Year", "RoundNumber"]
+
+    race_history = (
+        history.groupby(race_keys, sort=False)
+        .agg(
+            RaceName=("RaceName", "first"),
+            PositionSum=("Position", "sum"),
+            PositionCount=("Position", "count"),
+        )
+        .reset_index()
+        .sort_values(race_keys)
+        .reset_index(drop=True)
+    )
+
+
+
+    # ----------------------------------------------------------
+    # Calculate cumulative pre-race history for each category
+    # ----------------------------------------------------------
+
+    for performance_col, (circuits, history_col) in FEATURE_MAP.items():
+
+        if circuits is None:
+            category_mask = race_history["RaceName"].isin(
+                permanent_circuits
+            )
+        else:
+            category_mask = race_history["RaceName"].isin(
+                circuits
+            )
+
+        category_sum = race_history["PositionSum"].where(
+            category_mask,
+            0.0,
+        )
+
+        category_count = race_history["PositionCount"].where(
+            category_mask,
+            0,
+        )
+
+        cumulative_sum = (
+            category_sum
+            .groupby(race_history["FullName"])
+            .cumsum()
+        )
+
+        cumulative_count = (
+            category_count
+            .groupby(race_history["FullName"])
+            .cumsum()
+        )
+
+        # Shift by one complete race.
+        # Therefore the current race can NEVER enter its own feature.
+        previous_sum = (
+            cumulative_sum
+            .groupby(race_history["FullName"])
+            .shift(1)
+        )
+
+        previous_count = (
+            cumulative_count
+            .groupby(race_history["FullName"])
+            .shift(1)
+        )
+
+        race_history[performance_col] = (
+            previous_sum / previous_count
+        )
+
+        race_history[history_col] = (
+            (previous_count > 0)
+            .astype(float)
+        )
+
+    # ----------------------------------------------------------
+    # Merge race-level historical features back to every driver
+    # row.
+    # ----------------------------------------------------------
+
+    feature_columns = [
         "StreetCircuitPerformance",
         "PermanentCircuitPerformance",
         "HighSpeedCircuitPerformance",
@@ -100,168 +186,24 @@ def add_circuit_features(df: pd.DataFrame) -> pd.DataFrame:
         "HasStreetCircuitHistory",
         "HasPermanentCircuitHistory",
         "HasHighSpeedCircuitHistory",
-        "HasHighDownforceCircuitHistory"
+        "HasHighDownforceCircuitHistory",
     ]
 
-    for col in circuit_columns:
-        df[col] = np.nan
+    df = df.merge(
+        race_history[
+            race_keys + feature_columns
+        ],
+        on=race_keys,
+        how="left",
+        sort=False,
+    )
+    # No prior history means 0, matching the original feature definition.
+    history_columns = [
+        "HasStreetCircuitHistory",
+        "HasPermanentCircuitHistory",
+        "HasHighSpeedCircuitHistory",
+        "HasHighDownforceCircuitHistory",
+    ]
 
-    # ==========================================================
-    # CIRCUIT PERFORMANCE
-    # HISTORY FROM 2023 ONWARDS
-    # STRICTLY PRE-RACE
-    # ==========================================================
-
-    print("Building circuit performance features...")
-
-    for idx in range(len(df)):
-
-        if idx % 500 == 0:
-            print(
-                f"Processed circuit features: "
-                f"{idx}/{len(df)}"
-            )
-
-        row = df.iloc[idx]
-
-        driver = row["FullName"]
-        current_year = row["Year"]
-        current_round = row["RoundNumber"]
-
-        history = df[
-            (df["FullName"] == driver)
-            &
-            (
-                (
-                    (df["Year"] >= 2023)
-                    &
-                    (df["Year"] < current_year)
-                )
-                |
-                (
-                    (df["Year"] == current_year)
-                    &
-                    (df["Year"] >= 2023)
-                    &
-                    (df["RoundNumber"] < current_round)
-                )
-            )
-        ]
-
-        # ------------------------------------------------------
-        # STREET
-        # ------------------------------------------------------
-
-        street_history = history[
-            history["RaceName"].isin(
-                STREET_CIRCUITS
-            )
-        ]
-
-        if len(street_history) > 0:
-
-            df.at[
-                idx,
-                "StreetCircuitPerformance"
-            ] = street_history["Position"].mean()
-
-            df.at[
-                idx,
-                "HasStreetCircuitHistory"
-            ] = 1
-
-        else:
-
-            df.at[
-                idx,
-                "HasStreetCircuitHistory"
-            ] = 0
-
-        # ------------------------------------------------------
-        # PERMANENT
-        # ------------------------------------------------------
-
-        permanent_history = history[
-            history["RaceName"].isin(
-                permanent_circuits
-            )
-        ]
-
-        if len(permanent_history) > 0:
-
-            df.at[
-                idx,
-                "PermanentCircuitPerformance"
-            ] = permanent_history["Position"].mean()
-
-            df.at[
-                idx,
-                "HasPermanentCircuitHistory"
-            ] = 1
-
-        else:
-
-            df.at[
-                idx,
-                "HasPermanentCircuitHistory"
-            ] = 0
-
-        # ------------------------------------------------------
-        # HIGH SPEED
-        # ------------------------------------------------------
-
-        high_speed_history = history[
-            history["RaceName"].isin(
-                HIGH_SPEED_CIRCUITS
-            )
-        ]
-
-        if len(high_speed_history) > 0:
-
-            df.at[
-                idx,
-                "HighSpeedCircuitPerformance"
-            ] = high_speed_history["Position"].mean()
-
-            df.at[
-                idx,
-                "HasHighSpeedCircuitHistory"
-            ] = 1
-
-        else:
-
-            df.at[
-                idx,
-                "HasHighSpeedCircuitHistory"
-            ] = 0
-
-        # ------------------------------------------------------
-        # HIGH DOWNFORCE
-        # ------------------------------------------------------
-
-        high_downforce_history = history[
-            history["RaceName"].isin(
-                HIGH_DOWNFORCE_CIRCUITS
-            )
-        ]
-
-        if len(high_downforce_history) > 0:
-
-            df.at[
-                idx,
-                "HighDownforceCircuitPerformance"
-            ] = high_downforce_history["Position"].mean()
-
-            df.at[
-                idx,
-                "HasHighDownforceCircuitHistory"
-            ] = 1
-
-        else:
-
-            df.at[
-                idx,
-                "HasHighDownforceCircuitHistory"
-            ] = 0
-
+    df[history_columns] = df[history_columns].fillna(0)
     return df

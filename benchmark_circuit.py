@@ -139,7 +139,10 @@ def original(df):
 # Load + prep input (same as real pipeline)
 # ------------------------------------------------------------
 
-df = pd.read_csv("f1_2020_2026_raw_v2.csv")
+import os
+
+data_path = "data/f1_2020_2026_raw_v2.csv" if os.path.exists("data/f1_2020_2026_raw_v2.csv") else "f1_2020_2026_raw_v2.csv"
+df = pd.read_csv(data_path)
 df = df.dropna(subset=["Position"]).copy()
 df["Position"] = pd.to_numeric(df["Position"], errors="coerce")
 df["GridPosition"] = pd.to_numeric(df["GridPosition"], errors="coerce")

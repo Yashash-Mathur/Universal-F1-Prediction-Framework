@@ -8,6 +8,7 @@ Covers:
   - /api/v1/models/latest
   - API key auth (valid, invalid)
   - Rate limit (429 on burst)
+  - Admin key management (create, list, revoke)
 """
 
 import hashlib
@@ -69,8 +70,11 @@ def setup_db():
     valid_key = "test_valid_key"
     api_key = ApiKey(key_hash=hashlib.sha256(valid_key.encode()).hexdigest(),
                      client_name="tester", tier="free")
+    admin_key_raw = "test_admin_key"
+    admin_key = ApiKey(key_hash=hashlib.sha256(admin_key_raw.encode()).hexdigest(),
+                       client_name="admin_tester", tier="admin")
 
-    db.add_all([mv, race, driver1, driver2, driver3, pred1, pred2, pred3, api_key])
+    db.add_all([mv, race, driver1, driver2, driver3, pred1, pred2, pred3, api_key, admin_key])
     db.commit()
     db.close()
 
@@ -154,3 +158,61 @@ def test_valid_api_key():
 def test_invalid_api_key():
     r = client.get("/api/v1/races", headers={"x-api-key": "bogus_key"})
     assert r.status_code == 401
+
+
+# ── Admin key management tests ────────────────────────────────────────────────
+
+ADMIN_HDR = {"x-api-key": "test_admin_key"}
+NON_ADMIN_HDR = {"x-api-key": "test_valid_key"}
+
+
+def test_admin_create_key():
+    r = client.post("/api/v1/admin/keys",
+                    json={"client_name": "new_client", "tier": "pro"},
+                    headers=ADMIN_HDR)
+    assert r.status_code == 201
+    data = r.json()
+    assert data["client_name"] == "new_client"
+    assert data["tier"] == "pro"
+    assert data["is_active"] is True
+    assert len(data["raw_key"]) == 64   # 32 hex bytes → 64 chars
+
+
+def test_admin_list_keys():
+    r = client.get("/api/v1/admin/keys", headers=ADMIN_HDR)
+    assert r.status_code == 200
+    keys = r.json()
+    assert len(keys) >= 2   # at least free tester + admin tester
+    # raw_key must NOT be in list responses
+    for k in keys:
+        assert k.get("raw_key") is None
+
+
+def test_admin_revoke_key():
+    # Create a key then revoke it
+    created = client.post("/api/v1/admin/keys",
+                          json={"client_name": "to_revoke", "tier": "free"},
+                          headers=ADMIN_HDR).json()
+    r = client.delete(f"/api/v1/admin/keys/{created['id']}", headers=ADMIN_HDR)
+    assert r.status_code == 204
+    # Verify it's inactive (appears in list but is_active=False)
+    keys = client.get("/api/v1/admin/keys", headers=ADMIN_HDR).json()
+    match = next(k for k in keys if k["id"] == created["id"])
+    assert match["is_active"] is False
+
+
+def test_admin_revoke_nonexistent():
+    r = client.delete("/api/v1/admin/keys/99999", headers=ADMIN_HDR)
+    assert r.status_code == 404
+
+
+def test_non_admin_forbidden():
+    r = client.post("/api/v1/admin/keys",
+                    json={"client_name": "x", "tier": "free"},
+                    headers=NON_ADMIN_HDR)
+    assert r.status_code == 403
+
+
+def test_anon_admin_forbidden():
+    r = client.get("/api/v1/admin/keys")
+    assert r.status_code == 403

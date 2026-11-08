@@ -15,7 +15,8 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
-from src.api.routes import health, races, predictions, model_versions
+from src.api.routes import health, races, predictions, model_versions, admin
+from src.api.middleware import UsageLoggingMiddleware
 from src.db.session import init_db
 
 
@@ -43,6 +44,7 @@ app = FastAPI(
 )
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(UsageLoggingMiddleware)
 
 
 # ── Routes ──────────────────────────────────────────────────────────────────
@@ -50,3 +52,4 @@ app.include_router(health.router)
 app.include_router(races.router)
 app.include_router(predictions.router)
 app.include_router(model_versions.router)
+app.include_router(admin.router)

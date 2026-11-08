@@ -1,5 +1,8 @@
 FROM python:3.11-slim AS base
 
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
 WORKDIR /app
 
 # System deps for catboost and psycopg2
@@ -8,10 +11,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt \
-    && pip install --no-cache-dir fastapi uvicorn sqlalchemy slowapi python-dotenv psycopg2-binary
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 RUN chmod +x scripts/entrypoint.sh
+
+# Non-root user for security
+RUN adduser --disabled-password --gecos "" appuser \
+    && chown -R appuser /app
+USER appuser
 
 ENTRYPOINT ["scripts/entrypoint.sh"]

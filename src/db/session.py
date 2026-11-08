@@ -17,6 +17,14 @@ load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data/f1_platform.db")
 
+# Auto-create directory for SQLite file if it doesn't exist
+if DATABASE_URL.startswith("sqlite:///"):
+    _db_path = DATABASE_URL.replace("sqlite:///", "")
+    if _db_path and _db_path != ":memory:":
+        _dir_name = os.path.dirname(os.path.abspath(_db_path))
+        if _dir_name:
+            os.makedirs(_dir_name, exist_ok=True)
+
 # SQLite needs check_same_thread=False for FastAPI's thread model
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 

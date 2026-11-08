@@ -27,6 +27,7 @@ jobs:
 
     - name: Run Alembic migrations
       run: |
+        mkdir -p data
         alembic upgrade head
 
     - name: Run API & Integration tests

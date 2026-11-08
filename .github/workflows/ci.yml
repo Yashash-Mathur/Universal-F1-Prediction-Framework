@@ -1,0 +1,58 @@
+name: CI & Regression Verification
+
+on:
+  push:
+    branches: [ main, repo-cleanup ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+        cache: "pip"
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run Alembic migrations
+      run: |
+        alembic upgrade head
+
+    - name: Run API & Integration tests
+      run: |
+        pytest tests/ -v
+
+    - name: Verify ML Feature Parity
+      run: |
+        python -c "
+        import pandas as pd
+        from pandas.testing import assert_frame_equal
+        from src.preprocessing.clean import clean_raw
+        from src.features.build_features import build_features
+
+        raw = pd.read_csv('data/f1_2020_2026_raw_v2.csv')
+        cleaned = clean_raw(raw)
+        df = build_features(cleaned)
+
+        golden = pd.read_csv('data/f1_2020_2026_features_v6_golden.csv')
+        model_cols = [c for c in golden.columns if c in df.columns and c != 'bestqualitime']
+        assert_frame_equal(
+            df[model_cols].reset_index(drop=True),
+            golden[model_cols].reset_index(drop=True),
+            check_exact=False,
+            rtol=1e-10,
+            atol=1e-10
+        )
+        print('Parity Check Passed!')
+        "

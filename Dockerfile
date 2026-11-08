@@ -12,5 +12,6 @@ RUN pip install --no-cache-dir -r requirements.txt \
     && pip install --no-cache-dir fastapi uvicorn sqlalchemy slowapi python-dotenv psycopg2-binary
 
 COPY . .
+RUN chmod +x scripts/entrypoint.sh
 
-CMD ["python", "-m", "uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+ENTRYPOINT ["scripts/entrypoint.sh"]

@@ -106,3 +106,18 @@ class ApiKey(Base):
     tier: Mapped[str] = mapped_column(String, default="free")     # free | pro | admin
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utc_now)
+
+    usage_logs: Mapped[list["ApiUsage"]] = relationship(back_populates="api_key")
+
+
+class ApiUsage(Base):
+    __tablename__ = "api_usage"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    api_key_id: Mapped[int | None] = mapped_column(ForeignKey("api_keys.id"), nullable=True)
+    client_ip: Mapped[str] = mapped_column(String, nullable=False)
+    endpoint: Mapped[str] = mapped_column(String, nullable=False)
+    status_code: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utc_now)
+
+    api_key: Mapped["ApiKey | None"] = relationship(back_populates="usage_logs")

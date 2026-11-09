@@ -145,3 +145,4 @@ docker compose up --build -d
 - [x] **Phase 1: ML Engine Cleanup & Parity Validation** (Modularized `src/`, 374× vectorized circuit features, repository hygiene).
 - [x] **Phase 2: Relational Persistence & REST Backend** (SQLAlchemy schema, SQLite/PostgreSQL dual mode, prediction refresh CLI, FastAPI read endpoints).
 - [x] **Phase 3: Rate Limiting, API Key Security & Docker Deployment** (SlowAPI rate limiting, API key authentication, Dockerfile & docker-compose stack).
+- [x] **Phase 4: Production Hardening & CI/CD** (Alembic schema migrations, Admin API key management, non-blocking usage logging middleware, GitHub Actions automated CI).
